@@ -6,6 +6,7 @@ let markdownPathOptions, markdownSourcePath, journalEditorLink, importWorldPath,
 let enableTracing = false;
 let newImportedFiles = "";
 let skippedJournalFolders, skippedJournalEntries;
+let FilePicker = foundry.applications.apps.FilePicker.implementation
 
 // parses the string back to something the FilePicker can understand as an option
 export function parse(str) {
@@ -73,6 +74,59 @@ export async function initModule() {
     if (enableTracing) {
         Logger.enableTracing();
     }
+
+    Hooks.on("chatCommandsReady", (chatCommands) => {
+        chatCommands.register(
+            {
+                name: "/js", // The slash command name (e.g., /mycommand)
+                module: "journal-sync", // Your module's ID
+                description: "Sync journal entries to convienient markdown format.",
+                callback: async (chatlog, messageText, chatdata) => {
+                    // This function is executed when the command is used
+                    // 'messageText' will contain any arguments after the command
+                    // 'chatdata' contains information about the chat message
+                    switch (messageText) {
+                        case "help":
+                            return {
+                                content: "HERE IS HELP!",
+                            };
+                        case "test": // /js test
+                            // FilePicker.browse(markdownPathOptions.activeSource, "/").then((result) => {
+                            //     ChatMessage.create({content: JSON.stringify(result)});
+                            //     Logger.log(markdownPathOptions.activeSource)
+                            // });
+
+                            game.journal.forEach((value, key) => {
+                                Logger.log(`${value.name} = f:${value.folder}`);
+                                value.pages.forEach((page, pkey) => {
+                                    Logger.log(`   p[${page.name} = ${page.text.content}]`);
+                                });
+                            });
+                            return {};
+                        case "export": // /js export
+                            await startExport();
+                            return {};
+                        case "import": // /js import
+                            await startImport();
+                            return {};
+                        case "nukejournals":
+                            game.journal.forEach((value, key, map) => { JournalEntry.delete(value.id); });
+                            return {};
+                        case "nukefolders":
+                            game.journal.forEach((value, key, map) => { JournalEntry.delete(value.id); });
+                            return {};
+                        default:
+                            return {
+                                content: "HERE IS HELP!",
+                            };
+                    }
+                },
+                shouldDisplayToChat: false, // Whether the command should be displayed in the chat log
+                //icon: "fas fa-dice-d20", // Optional icon for the command
+                // You can add more options like `autocomplete`, `aliases`, etc.
+            }
+        );
+    });
 }
 
 export async function readyModule() {
@@ -91,60 +145,10 @@ export async function readyModule() {
                 Logger.log(`Creating ${buildPath}`);
             })
             .catch((error) => {
-                if (!error.includes("EEXIST")) {
-                    Logger.log(error);
+                if (!error.message.includes("EEXIST")) {
+                    Logger.log(error.message);
                 }
             });
-    });
-
-    Hooks.on("preCreateChatMessage", async (data, options, userId) => {
-        if (data.content === undefined || data.content.length == 0) return;
-        let content = data.content || "";
-        if (!content.trim().startsWith("/js")) return;
-
-        let command = content.replace("/js", "").trim();
-
-        switch (command) {
-            case "help":
-                data.content = "HERE IS HELP!";
-                return true;
-                break;
-
-            case "test": // /js test
-                FilePicker.browse(markdownPathOptions.activeSource, "/").then((result) => {
-                     ChatMessage.create({content: JSON.stringify(result)});
-                });
-
-                console.log(game.journal);
-                game.journal.forEach((value, key, map) => {
-                    Logger.log(`m[${key}] = ${value.data.name} - ${value.data.folder} - ${value.data.content}`);
-                });
-                return false;
-                break;
-
-            case "export": // /js export
-                await startExport();
-                return false;
-                break;
-
-            case "import": // /js import
-                await startImport();
-                return false;
-                break;
-
-            case "nukejournals":
-                game.journal.forEach((value, key, map) => { JournalEntry.delete(value.id); });
-                break;
-
-            case "nukefolders":
-                game.journal.forEach((value, key, map) => { JournalEntry.delete(value.id); });
-                break;
-
-            default:
-                data.content = "HERE IS HELP!";
-                return true;
-                break;
-        }
     });
 
     Hooks.on("getSceneControlButtons", (controls) => {
@@ -195,46 +199,35 @@ async function startImport() {
     }
 
     ui.notifications.info("Import completed");
-    // FilePicker.browse(markdownPathOptions.activeSource, validMarkdownSourcePath()).then((result) => {
-    //     console.log(result);
-    //     result.files.forEach(file => {
-    //         importFile(file);
-    //     });
-    //     result.dirs.forEach(folder => {
-    //         importFolder(folder);
-    //     });
-    // });
 }
 
 async function startExport() {
-    let journalFolders = await createFolderTree(game.folders.filter(f => (f.data.type === "JournalEntry") && f.displayed))
+    let parentPath = validMarkdownSourcePath()+validExportWorldPath();
+    await FilePicker.createDirectory(markdownPathOptions.activeSource, parentPath)
+        .then((result) => {
+            Logger.log(`Created ${parentPath}`);
+        })
+        .catch((error) => {
+            Logger.log(error.message);
+        });
 
-    journalFolders.forEach(folderEntity => {
-        exportFolder(folderEntity, validMarkdownSourcePath()+validExportWorldPath());
-    });
-
-    game.journal.filter(f => (f.data.folder === "")).forEach((value, key, map) => {
-        Logger.logTrace(`m[${key}] = ${value.data.name} - ${value.data.folder} - ${value.data.type}`);
-        exportJournal(value, validMarkdownSourcePath()+validExportWorldPath());
-    });
-    ui.notifications.info("Export completed");
+    exportFolder(game.journal.tree, parentPath+"/root");
 }
 
 function validMarkdownSourcePath() {
     let validMarkdownSourcePath = markdownSourcePath.replace("\\", "/");
     validMarkdownSourcePath += validMarkdownSourcePath.endsWith("/") ? "" : "/";
-//  validMarkdownSourcePath += game.world.name + "/";
     return validMarkdownSourcePath;
 }
 
 function validImportWorldPath() {
-    let validImportWorldPath = importWorldPath == "" ? (game.world.name + "/") : importWorldPath;
+    let validImportWorldPath = importWorldPath == "" ? (game.world.id + "/") : importWorldPath;
     validImportWorldPath += validImportWorldPath.endsWith("/") ? "" : "/";
     return validImportWorldPath;
 }
 
 function validExportWorldPath() {
-    let validExportWorldPath = exportWorldPath == "" ? (game.world.name + "/") : exportWorldPath;
+    let validExportWorldPath = exportWorldPath == "" ? (game.world.id + "/") : exportWorldPath;
     validExportWorldPath += validExportWorldPath.endsWith("/") ? "" : "/";
     return validExportWorldPath;
 }
@@ -249,7 +242,7 @@ function isValidFileName(filename) {
 }
 
 function generateJournalFileName(journalEntity) {
-    return `${journalEntity.name} (${journalEntity.id}).md`
+    return `${journalEntity.name.replace(" ","-")}-(${journalEntity.id}).md`
 }
 
 function getJournalIdFromFilename(fileName) {
@@ -300,7 +293,7 @@ async function createJournalFolders(rootPath, parentFolderId) {
     let result = await FilePicker.browse(markdownPathOptions.activeSource, rootPath)
     for (let [key, folder] of Object.entries(result.dirs)) {
         let thisFolderName = last(decodeURIComponent(folder).split('/'));
-        let folderDetails = game.folders.filter(f => (f.data.type === "JournalEntry") && (f.data.name === thisFolderName) && (f.data.parent === parentFolderId));
+        let folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
 
         if (folderDetails.length == 0) {
             Logger.logTrace(`createJournalFolders | Creating folder path: ${thisFolderName} parent: ${parentFolderId}`)
@@ -308,7 +301,7 @@ async function createJournalFolders(rootPath, parentFolderId) {
             await Folder.create({ name: thisFolderName, type: "JournalEntry", parent: parentFolderId });
         }
 
-        folderDetails = game.folders.filter(f => (f.data.type === "JournalEntry") && (f.data.name === thisFolderName) && (f.data.parent === parentFolderId));
+        folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
         Logger.logTrace(`createJournalFolders | folder: ${folder} thisFolderName: ${thisFolderName} folderDetails._id: ${folderDetails[0]._id} folderDetails: ${JSON.stringify(folderDetails)}`)
 
         createJournalFolders(folder, folderDetails[0]._id);
@@ -339,7 +332,7 @@ async function importFile(file) {
 
             const path = pathArray[index];
             if (path != '') {
-                let folder = game.folders.filter(f => (f.data.type === "JournalEntry") && (f.data.name === path) && (f.data.parent === currentParent));
+                let folder = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === path) && (f.parent === currentParent));
                 currentParent = folder[0]._id;
                 Logger.logTrace(`currentParent: '${currentParent}' path: '${path}' folder: '${JSON.stringify(folder)}' (${folder[0]._id}) '${typeof folder}' '${folder.length}'`);
             }
@@ -381,46 +374,23 @@ async function importFile(file) {
 }
 
 async function exportFolder(folder, parentPath) {
-    let folderPath = (parentPath + '/' + folder.data.name).replace("//", "/").trim();
+    let folderName = folder.folder ? '/'+folder.folder.name:'';
+    let folderPath = (parentPath + folderName).replace("//", "/").replace(" ","-").trim();
 
-    // Create folder directory on server. 
-    // Try and create parent path before child, have to catch error 
-    // as no way to check for folder existance that I saw.
-    FilePicker.createDirectory(markdownPathOptions.activeSource, parentPath)
-        .then((result) => {
-            Logger.log(`Creating ${parentPath}`);
-        })
-        .catch((error) => {
-            if (!error.includes("EEXIST")) {
-                Logger.log(error);
-            } else {
-                Logger.log(`${parentPath} exists`);
-            }
-        });
-
-    FilePicker.createDirectory(markdownPathOptions.activeSource, folderPath)
-        .then((result) => {
-            Logger.log(`Creating ${folderPath}`);
-            folder.content.forEach(journalEntry => {
-                exportJournal(journalEntry, folderPath);
-            });
-        })
-        .catch((error) => {
-            if (!error.includes("EEXIST")) {
-                Logger.log(error);
-            } else {
-                Logger.log(`${folderPath} exists`);
-                folder.content.forEach(journalEntry => {
-                    exportJournal(journalEntry, folderPath);
-                });
-            }
-        });
-
+    await FilePicker.createDirectory(markdownPathOptions.activeSource, folderPath).then(() => {
+        Logger.log(`Created ${folderPath}`);
+    }).catch((error) => {
+        Logger.log(error.message);
+    });
+  
+    for (const journalEntry of folder.entries) {
+        exportJournal(journalEntry, folderPath);
+    }
 
     // Recurse for any sub folders. 
-    folder.children.forEach(folderEntity => {
+    for (const folderEntity of folder.children) {
         exportFolder(folderEntity, folderPath);
-    });
+    }
 }
 
 async function exportJournal(journalEntry, parentPath) {
@@ -432,45 +402,42 @@ async function exportJournal(journalEntry, parentPath) {
     if(!isValidFileName(journalEntry.name)) {
         ChatMessage.create({ content: `Unable to export:<br /> <strong>${parentPath}/${journalEntry.name}</strong><br />It has invalid character(s) in its name that can not be used in file names.<br /><br /> These characters are invalid: <pre>| * ? \ : < > $</pre><br />Please rename the Journal Entry and export again.` });
     }
-    
 
-    let md = "";
-    let journalFileName = generateJournalFileName(journalEntry);
+    let folderPath = (parentPath + '/' + journalEntry.name).replace("//", "/").replace(" ","-").trim();
+    await FilePicker.createDirectory(markdownPathOptions.activeSource, folderPath).then(() => {
+        Logger.log(`Created ${folderPath}`);
+    }).catch((error) => {
+        Logger.log(error.message);
+    });
 
-    // If the contents is pure JSON ignore it as it may be used by 
-    // a module as configuration storage.
-    if (hasJsonStructure(journalEntry.data.content)) {
-        Logger.log(`Detected JSON, skipping markdown conversion for '${journalFileName}' located at '${parentPath}'`);
-        md = journalEntry.data.content.split('\r\n');
-    } else {
-        var converter = new showdown.Converter({ tables: true, strikethrough: true });
-        md = converter.makeMarkdown(journalEntry.data.content).split('\r\n');
-    }
+    for (const page of journalEntry.pages) {
+        let md = "";
+        let pageFileName = generateJournalFileName(page);
 
-    let blob = new Blob([md], {type: "text/markdown"});
-    let file = new File([blob], journalFileName, {type: "text/markdown"});
-
-    FilePicker.upload(markdownPathOptions.activeSource, parentPath, file, { bucket: null })
-        .then((result) => {
-            Logger.log(`Uploading ${parentPath}/${journalFileName}`);
-        })
-        .catch((error) => {
-            Logger.log(error);
-        });
-}
-
-async function createFolderTree(dataset) {
-    let hashTable = Object.create(null);
-    let dataTree = [];
-    dataset.forEach(folderEntity => hashTable[folderEntity.id] = { ...folderEntity, childNodes: [] });
-
-    dataset.forEach(folderEntity => {
-        if (folderEntity.parent) {
-            hashTable[folderEntity.parent.id].childNodes.push(hashTable[folderEntity.id]);
-        } else {
-            dataTree.push(hashTable[folderEntity.id]);
+        if (page.type !== "text") {
+            Logger.log(`Skipping ${pageFileName} as it is not a text page`);
+            continue;
         }
-    })
-    return dataTree;
+    
+        // If the contents is pure JSON ignore it as it may be used by 
+        // a module as configuration storage.
+        if (hasJsonStructure(page.text.content)) {
+            Logger.log(`Detected JSON, skipping markdown conversion for '${pageFileName}' located at '${parentPath}'`);
+            md = page.text.content.content.split('\n');
+        } else if (page.text.content) {
+            var converter = new showdown.Converter({ tables: true, strikethrough: true });
+            md = converter.makeMarkdown(page.text.content).split('\n');
+        }
+    
+        let blob = new Blob([md], {type: "text/markdown"});
+        let file = new File([blob], pageFileName, {type: "text/markdown"});
+    
+        await FilePicker.upload(markdownPathOptions.activeSource, folderPath, file, { bucket: null })
+            .then((result) => {
+                Logger.log(`Uploaded ${folderPath}/${pageFileName}`);
+            })
+            .catch((error) => {
+                Logger.log(error);
+            });        
+    }
 }
-
