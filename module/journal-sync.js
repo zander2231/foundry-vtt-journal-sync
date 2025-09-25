@@ -78,8 +78,8 @@ export async function initModule() {
     Hooks.on("chatCommandsReady", (chatCommands) => {
         chatCommands.register(
             {
-                name: "/js", // The slash command name (e.g., /mycommand)
-                module: "journal-sync", // Your module's ID
+                name: "/sync",
+                module: "journal-sync",
                 description: "Sync journal entries to convienient markdown format.",
                 callback: async (chatlog, messageText, chatdata) => {
                     // This function is executed when the command is used
@@ -90,12 +90,7 @@ export async function initModule() {
                             return {
                                 content: "HERE IS HELP!",
                             };
-                        case "test": // /js test
-                            // FilePicker.browse(markdownPathOptions.activeSource, "/").then((result) => {
-                            //     ChatMessage.create({content: JSON.stringify(result)});
-                            //     Logger.log(markdownPathOptions.activeSource)
-                            // });
-
+                        case "test":
                             game.journal.forEach((value, key) => {
                                 Logger.log(`${value.name} = f:${value.folder}`);
                                 value.pages.forEach((page, pkey) => {
@@ -103,10 +98,10 @@ export async function initModule() {
                                 });
                             });
                             return {};
-                        case "export": // /js export
+                        case "export":
                             await startExport();
                             return {};
-                        case "import": // /js import
+                        case "import":
                             await startImport();
                             return {};
                         case "nukejournals":
