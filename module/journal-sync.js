@@ -88,7 +88,7 @@ export async function initModule() {
                     switch (messageText) {
                         case "help":
                             return {
-                                content: "HERE IS HELP!",
+                                content: "Sync files and folders\n/sync help\n/sync test\n/sync export\n/sync import\n/sync nukejournals\n/sync nukefolders",
                             };
                         case "test":
                             game.journal.forEach((value, key) => {
