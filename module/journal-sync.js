@@ -187,18 +187,20 @@ export async function readyModule() {
 }
 
 async function startImport() {
-    await createJournalFolders(validMarkdownSourcePath()+validImportWorldPath(), null);
-    let result = await FilePicker.browse(markdownPathOptions.activeSource, validMarkdownSourcePath()+validImportWorldPath());
-    for (let [key, file] of Object.entries(result.files)) {
-        if(isValidFile(file)) {
-            await importFile(file);
-        }
-    }
-    for (let [key, folder] of Object.entries(result.dirs)) {
-        await importFolder(folder);
-    }
+    // await createJournalFolders(validMarkdownSourcePath()+validImportWorldPath(), null);
+    // let result = await FilePicker.browse(markdownPathOptions.activeSource, validMarkdownSourcePath()+validImportWorldPath());
+    // for (let [key, file] of Object.entries(result.files)) {
+    //     if(isValidFile(file)) {
+    //         await importFile(file);
+    //     }
+    // }
+    // for (let [key, folder] of Object.entries(result.dirs)) {
+    //     await importFolder(folder);
+    // }
 
-    ui.notifications.info("Import completed");
+    let parentPath = validMarkdownSourcePath()+validExportWorldPath();
+    await importFolder(parentPath+"/root");
+    // ui.notifications.info("Import completed");
 }
 
 async function startExport() {
@@ -242,18 +244,15 @@ function isValidFileName(filename) {
 }
 
 function generateJournalFileName(journalEntity) {
-    return `${journalEntity.name.replace(" ","-")}-(${journalEntity.id}).md`
+    return `${journalEntity.name.replace(" ","-")}(${journalEntity.id}).md`
 }
 
 function getJournalIdFromFilename(fileName) {
-    // 'sdfkjs dflksjd kljf skldjf(IDIDIDIID).md
     return last(fileName.split('(')).replace(').md', '');
 }
 
-function getJournalTitleFromFilename(fileName) {
-    // 'sdfkjs dflksjd kljf skldjf(IDIDIDIID).md
-    // Remove the ID if i is there and any .md remaining so it is just the file name with no extension.
-    return fileName.replace(`(${getJournalIdFromFilename(fileName)}).md`, '').replace('.md', '');
+function getJournalPageNameFromFilename(fileName) {
+    return fileName.replace(`(${getJournalIdFromFilename(fileName)})`, '').replace('.md', '').replace("-"," ");
 }
 
 function last(array) {
@@ -288,25 +287,25 @@ async function importFolder(importFolderPath) {
 }
 
 // This will create the journal folder in FVTT
-async function createJournalFolders(rootPath, parentFolderId) {
-    Logger.logTrace(`createJournalFolders | Params(folder = ${rootPath} parent = ${parentFolderId})`)
-    let result = await FilePicker.browse(markdownPathOptions.activeSource, rootPath)
-    for (let [key, folder] of Object.entries(result.dirs)) {
-        let thisFolderName = last(decodeURIComponent(folder).split('/'));
-        let folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
+// async function createJournalFolders(rootPath, parentFolderId) {
+//     Logger.logTrace(`createJournalFolders | Params(folder = ${rootPath} parent = ${parentFolderId})`)
+//     let result = await FilePicker.browse(markdownPathOptions.activeSource, rootPath)
+//     for (let [key, folder] of Object.entries(result.dirs)) {
+//         let thisFolderName = last(decodeURIComponent(folder).split('/'));
+//         let folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
 
-        if (folderDetails.length == 0) {
-            Logger.logTrace(`createJournalFolders | Creating folder path: ${thisFolderName} parent: ${parentFolderId}`)
-            Logger.logTrace(`${JSON.stringify({ name: thisFolderName, type: "JournalEntry", parent: parentFolderId })}`);
-            await Folder.create({ name: thisFolderName, type: "JournalEntry", parent: parentFolderId });
-        }
+//         if (folderDetails.length == 0) {
+//             Logger.logTrace(`createJournalFolders | Creating folder path: ${thisFolderName} parent: ${parentFolderId}`)
+//             Logger.logTrace(`${JSON.stringify({ name: thisFolderName, type: "JournalEntry", parent: parentFolderId })}`);
+//             await Folder.create({ name: thisFolderName, type: "JournalEntry", parent: parentFolderId });
+//         }
 
-        folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
-        Logger.logTrace(`createJournalFolders | folder: ${folder} thisFolderName: ${thisFolderName} folderDetails._id: ${folderDetails[0]._id} folderDetails: ${JSON.stringify(folderDetails)}`)
+//         folderDetails = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === thisFolderName) && (f.parent === parentFolderId));
+//         Logger.logTrace(`createJournalFolders | folder: ${folder} thisFolderName: ${thisFolderName} folderDetails._id: ${folderDetails[0]?._id} folderDetails: ${JSON.stringify(folderDetails)}`)
 
-        createJournalFolders(folder, folderDetails[0]._id);
-    }
-}
+//         createJournalFolders(folder, folderDetails[0]._id);
+//     }
+// }
 
 async function importFile(file) {
     Logger.logTrace(`importFile | params(file = ${file})`);
@@ -314,13 +313,16 @@ async function importFile(file) {
     var pathUrl = (journalPath.startsWith('https://') ? new URL(journalPath) : '')
     if(pathUrl) {
         var tempPathArray = pathUrl.pathname.split("/");
-        journalPath = tempPathArray.slice(2).join("/").replace(/\%20/gi," ");
+        journalPath = tempPathArray.slice(2).join("/").replace(/\%20/gi,"-");
     }
-    var journalId = getJournalIdFromFilename(journalPath).trim();
-    var journalName = getJournalTitleFromFilename(last(journalPath.split('/'))).trim();
-    var parentPath = journalPath.replace(last(journalPath.split('/')), '').trim();
+    
+    // Get the parent folder path and journal name
+    var pathParts = journalPath.split('/');
+    var fileName = pathParts.pop();
+    var journalName = pathParts.pop(); // The journal name is now the parent folder
+    var parentPath = pathParts.join('/');
 
-    if (skippedJournalEntries.includes(journalName) || skippedJournalFolders.includes(last(journalPath.split('/')))) {
+    if (skippedJournalEntries.includes(journalName) || skippedJournalFolders.includes(journalName)) {
         return;
     }
 
@@ -329,48 +331,66 @@ async function importFile(file) {
     if (parentPath != '') {
         let pathArray = parentPath.split('/');
         for (let index = 0; index < pathArray.length; index++) {
-
             const path = pathArray[index];
             if (path != '') {
-                let folder = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === path) && (f.parent === currentParent));
-                currentParent = folder[0]._id;
-                Logger.logTrace(`currentParent: '${currentParent}' path: '${path}' folder: '${JSON.stringify(folder)}' (${folder[0]._id}) '${typeof folder}' '${folder.length}'`);
+                let folder = game.folders.filter(f => (f.type === "JournalEntry") && (f.name === path.replace(/-/g, " ")) && (f.parent === currentParent));
+                if (folder.length > 0) {
+                    currentParent = folder[0]._id;
+                    Logger.logTrace(`currentParent: '${currentParent}' path: '${path}' folder: '${JSON.stringify(folder)}'`);
+                }
             }
         }
     }
 
-    Logger.logTrace(`'${file}','${journalPath}','${journalId}','${journalName}','${parentPath}','${currentParent}'`);
+    // Find or create the journal entry
+    let journalEntry = game.journal.find(j => j.name === journalName.replace(/-/g, " "));
+    if (!journalEntry) {
+        journalEntry = await JournalEntry.create({ 
+            name: journalName.replace(/-/g, " "), 
+            folder: currentParent,
+            pages: []
+        });
+        Logger.log(`Created journal ${journalName}`);
+    }
 
     if(!pathUrl) file = '/' + file;
-    fetch(file).then(response => {
-        response.text().then(journalContents => {
-            let updated = false;
-            let md = "";
+    const response = await fetch(file);
+    const pageContents = await response.text();
+    
+    // Create or update the page
+    let pageName = getJournalPageNameFromFilename(fileName);
+    let pageData = {
+        name: pageName,
+        type: "text",
+        text: { content: "" },
+        title: { show: false },
+    };
 
-            // If the contents is pure JSON ignore it as it may be used by 
-            // a module as configuration storage.
-            if (hasJsonStructure(journalContents)) {
-                md = journalContents
-            } else {
-                var converter = new showdown.Converter({ tables: true, strikethrough: true })
-                md = converter.makeHtml(journalContents);
-            }
+    // If the contents is pure JSON ignore it as it may be used by 
+    // a module as configuration storage.
+    if (hasJsonStructure(pageContents)) {
+        pageData.text.content = pageContents;
+    } else {
+        var converter = new showdown.Converter({ tables: true, strikethrough: true })
+        pageData.text.content = converter.makeHtml(pageContents);
+    }
 
-            game.journal.filter(f => (f.id === journalId)).forEach((value, key, map) => {
-                Logger.log(`Importing ${journalPath} with ID ${journalId} named ${journalName}`);
-                value.update({ content: md });
-                updated = true;
-            });
-
-            if (!updated) {
-                Logger.log(`Creating ${journalPath} named ${journalName}`);
-                JournalEntry.create({ name: journalName, content: md, folder: currentParent }).then(journal => { journal.show(); });
-                ChatMessage.create({ content: `Added ${journalName}, please run export and delete '${journalName}.md'` });
-            }
-
-        });
-
-    });
+    // Find if page already exists
+    let existingPage = journalEntry.pages.find(p => p.name === pageName);
+    if (existingPage) {
+        if (existingPage.type !== "text") {
+            Logger.log(`Skipping import of ${pageName} as it is not a text page`);
+            return;
+        }
+        await journalEntry.updateEmbeddedDocuments("JournalEntryPage", [{
+            _id: existingPage._id,
+            ...pageData
+        }]);
+        Logger.log(`Updated page ${pageName} in journal ${journalName}`);
+    } else {
+        await journalEntry.createEmbeddedDocuments("JournalEntryPage", [pageData]);
+        Logger.log(`Created page ${pageName} in journal ${journalName}`);
+    }
 }
 
 async function exportFolder(folder, parentPath) {
@@ -415,7 +435,7 @@ async function exportJournal(journalEntry, parentPath) {
         let pageFileName = generateJournalFileName(page);
 
         if (page.type !== "text") {
-            Logger.log(`Skipping ${pageFileName} as it is not a text page`);
+            Logger.log(`Skipping export of ${pageFileName} as it is not a text page`);
             continue;
         }
     
