@@ -1,0 +1,14 @@
+{
+  "name": "journal-sync",
+  "version": "1.0.0",
+  "description": "Journal Sync for Foundry VTT v13",
+  "dependencies": {
+    "archiver": "^5.3.1"
+  },
+  "scripts": {
+    "build": "node release.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
