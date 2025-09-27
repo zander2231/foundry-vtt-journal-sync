@@ -1,12 +1,23 @@
 {
   "id": "journal-sync",
-  "name": "journal-sync",
   "title": "Journal Sync",
   "description": "This module allows you to sync your journal entries with markdown files to give you more flexibility in editing your notes.",
-  "author": "Sytone",
+  "authors": [
+    {
+        "name": "Sytone",
+        "url": "https://gitlab.com/woodentavern/foundryvtt-chat-command-lib"
+    },
+    {
+      "name": "zander2231",
+      "email": "tsplab@gmail.com",
+      "url": "https://github.com/zander2231"
+    }
+  ],
   "version": "1.0.0",
-  "minimumCoreVersion": "0.7.8",
-  "compatibleCoreVersion": "0.7.8",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
   "languages": [
     {
       "lang": "en",
