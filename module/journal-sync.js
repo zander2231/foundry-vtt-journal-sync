@@ -122,6 +122,42 @@ export async function initModule() {
             }
         );
     });
+
+    Hooks.on("getSceneControlButtons", (controls) => {
+        let group = controls.notes;
+        group.tools.import = {
+            name: "import",
+            title: "Controls.import",
+            icon: "fas fa-file-import",
+            onClick: () => {
+                startImport();
+            },
+            button: true,
+            visible: true,
+        };
+        group.tools.export = {
+            name: "export",
+            title: "Controls.export",
+            icon: "fas fa-file-export",
+            onClick: () => {
+                startExport();
+            },
+            button: true,
+            visible: true,
+        };
+
+        // if (journalEditorLink != "") {
+        //     group.tools.push({
+        //         name: "edit",
+        //         title: "Edit Journals",
+        //         icon: "fas fa-edit",
+        //         onClick: () => {
+        //             window.open(journalEditorLink, "_blank");
+        //         },
+        //         button: true,
+        //     });
+        // }
+    });    
 }
 
 export async function readyModule() {
@@ -144,40 +180,6 @@ export async function readyModule() {
                     Logger.log(error.message);
                 }
             });
-    });
-
-    Hooks.on("getSceneControlButtons", (controls) => {
-        let group = controls.find(b => b.name == "notes")
-        group.tools.push({
-            name: "import",
-            title: "Import Journals",
-            icon: "fas fa-file-import",
-            onClick: () => {
-                startImport();
-            },
-            button: true
-        });
-        group.tools.push({
-            name: "export",
-            title: "Export Journals",
-            icon: "fas fa-file-export",
-            onClick: () => {
-                startExport();
-            },
-            button: true,
-        });
-
-        if (journalEditorLink != "") {
-            group.tools.push({
-                name: "edit",
-                title: "Edit Journals",
-                icon: "fas fa-edit",
-                onClick: () => {
-                    window.open(journalEditorLink, "_blank");
-                },
-                button: true,
-            });
-        }
     });
 }
 
