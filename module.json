@@ -9,11 +9,11 @@
     },
     {
       "name": "zander2231",
-      "email": "tsplab@gmail.com",
+      "email": "zander2231@gmail.com",
       "url": "https://github.com/zander2231"
     }
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "compatibility": {
     "minimum": "13",
     "verified": "13"
